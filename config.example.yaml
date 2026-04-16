@@ -1,0 +1,60 @@
+# feed-digest config.example.yaml
+# Copy this to config.yaml (gitignored) and fill in.
+
+# Where the skill reads "who is this user" context from. Read-only.
+# Xiq points this at ~/hermes/memory. Ivan points it at his equivalent.
+memory_path: ~/hermes/memory
+
+# Optional globs to scope what inside memory_path is read. Leave empty for everything.
+# memory_include_globs:
+#   - "daily/**/*.md"
+#   - "people/**/*.md"
+# memory_max_age_days: 60
+
+# Timezone for cron scheduling (IANA name). Digest built at 07:00 this TZ.
+timezone: America/New_York
+
+# Delivery — email (primary fallback). Telegram is host-agent-owned, not configured here.
+email:
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  smtp_user: you@gmail.com
+  smtp_password_env: FEED_SMTP_PASSWORD  # read from env, never committed
+  from: you@gmail.com
+  to: you@example.com
+
+# Serving: static file host port for Layer A / Layer B URLs.
+serve:
+  bind_host: 127.0.0.1
+  port: 7700
+  public_base_url: http://localhost:7700   # override if fronting with a reverse proxy
+
+# Source lists.
+sources:
+  substack:
+    # Full URLs. The skill uses substack-api.Newsletter(url).get_posts().
+    - https://xiqo.substack.com
+    # - https://someoneelse.substack.com
+
+  twitter_community_archive:
+    # Twitter handles (no @). MVP is community-archive-only; handles must be in archive.
+    # - frsc
+    # - othername
+
+  blog_rss:
+    # Any RSS feed URL. Parsed with feedparser.
+    # - https://simonwillison.net/atom.xml
+
+# Cost + noise controls.
+digest:
+  max_items: 7            # top items per digest
+  tail_items: 10          # additional "other notable" links
+  integration_window_days: 7   # how far back past digests + feedback feed into integration
+  timezone_model_token_budget: 150000  # input-side ceiling; prune oldest raw first if exceeded
+
+# Publishing.
+publish:
+  # Optional: email recipients for shared "Layer B" curated digests.
+  # followers_to: []
+  # Optional: group chat ID for posting URLs. Host agent uses its own Telegram.
+  # group_chat_id: null

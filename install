@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# feed-digest install script.
+# Detects your agent harness (Hermes or Claude Code), symlinks this repo into the
+# appropriate skills directory, and bootstraps config.yaml from the example.
+#
+# Re-running is idempotent.
+
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Detect target
+TARGET=""
+HOST=""
+if [ -d "$HOME/.hermes/skills" ]; then
+  TARGET="$HOME/.hermes/skills/feed-digest"
+  HOST="hermes"
+elif [ -d "$HOME/.claude/skills" ]; then
+  TARGET="$HOME/.claude/skills/feed-digest"
+  HOST="claude-code"
+else
+  echo "ERROR: neither ~/.hermes/skills nor ~/.claude/skills exists."
+  echo "Create one (e.g., 'mkdir -p ~/.claude/skills') and re-run this install."
+  exit 1
+fi
+
+echo "Installing feed-digest..."
+echo "  repo:   $REPO_DIR"
+echo "  host:   $HOST"
+echo "  target: $TARGET"
+
+# Remove existing link/dir to re-link cleanly
+if [ -L "$TARGET" ] || [ -d "$TARGET" ]; then
+  rm -rf "$TARGET"
+fi
+ln -s "$REPO_DIR" "$TARGET"
+echo "  symlinked: $TARGET -> $REPO_DIR"
+
+# Bootstrap config.yaml
+if [ ! -f "$REPO_DIR/config.yaml" ]; then
+  if [ -f "$REPO_DIR/config.example.yaml" ]; then
+    cp "$REPO_DIR/config.example.yaml" "$REPO_DIR/config.yaml"
+    echo "  created config.yaml from example. EDIT IT before running the pipeline."
+  fi
+fi
+
+# Create runtime dirs (gitignored)
+mkdir -p "$REPO_DIR/.feed" "$REPO_DIR/feedback" "$REPO_DIR/logs" "$REPO_DIR/digests" "$REPO_DIR/published" "$REPO_DIR/feeds/raw"
+echo "  created runtime dirs"
+
+echo ""
+echo "Done."
+echo "Next steps:"
+echo "  1. Edit $REPO_DIR/config.yaml"
+echo "  2. Install Python deps once pyproject.toml exists (pip install -e .)"
+echo "  3. Agent should now find the skill at $TARGET"

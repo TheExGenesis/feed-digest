@@ -1,0 +1,23 @@
+# Runtime state (local to each install — don't commit)
+config.yaml
+.feed/
+feedback/
+logs/
+digests/
+published/
+feeds/raw/
+failures/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
