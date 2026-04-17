@@ -53,10 +53,14 @@ if row: print(row['digest_id'])
 else: sys.exit(1)
 "
     ;;
+  setup)
+    "$PY" "$SKILL_DIR/setup.py"
+    ;;
   help|--help|-h)
     echo "Usage: hermes-feed <command> [options]"
     echo ""
-    echo "Commands:"
+    echo "Commands:
+  setup                 Interactive setup (config + secrets)"
     echo "  ingest                Fetch new items from all configured sources"
     echo "  digest [--from --to]  Compose digest for date range (default: today)"
     echo "  deliver [id] [--dry-run]  Send latest digest via email"

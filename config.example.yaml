@@ -58,3 +58,10 @@ publish:
   # followers_to: []
   # Optional: group chat ID for posting URLs. Host agent uses its own Telegram.
   # group_chat_id: null
+
+# LLM provider (OpenRouter by default, OpenAI-compatible).
+llm:
+  provider: openrouter
+  base_url: https://openrouter.ai/api/v1
+  api_key_env: OPENROUTER_API_KEY   # read from env or .env file, never committed
+  model: anthropic/claude-sonnet-4  # any OpenRouter model ID

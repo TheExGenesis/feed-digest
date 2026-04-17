@@ -146,19 +146,39 @@ def compose_digest(skill_dir: Path, from_date: str, to_date: str):
 {feedback or "(No feedback yet.)"}
 """
 
-    # Call Claude
-    import anthropic
-    client = anthropic.Anthropic()
+    # Call LLM via OpenRouter (OpenAI-compatible)
+    import openai
+    llm_config = config.get("llm", {})
+    api_key_env = llm_config.get("api_key_env", "OPENROUTER_API_KEY")
+    api_key = os.environ.get(api_key_env, "")
+    if not api_key:
+        # Fallback: try loading from .env file
+        env_path = skill_dir / ".env"
+        if env_path.exists():
+            for line in env_path.read_text().splitlines():
+                if line.startswith(f"{api_key_env}="):
+                    api_key = line.split("=", 1)[1].strip()
+    if not api_key:
+        log_pipeline(skill_dir, "digest", "llm_error", error=f"missing {api_key_env}")
+        print(f"LLM API key not set. Export {api_key_env} or run setup.py.")
+        conn.close()
+        return None
+
+    base_url = llm_config.get("base_url", "https://openrouter.ai/api/v1")
+    model = llm_config.get("model", "anthropic/claude-sonnet-4")
+    client = openai.OpenAI(api_key=api_key, base_url=base_url)
     digest_id = to_date
 
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+        response = client.chat.completions.create(
+            model=model,
             max_tokens=4096,
-            system=prompt_template,
-            messages=[{"role": "user", "content": user_message}],
+            messages=[
+                {"role": "system", "content": prompt_template},
+                {"role": "user", "content": user_message},
+            ],
         )
-        digest_content = response.content[0].text
+        digest_content = response.choices[0].message.content
     except Exception as e:
         log_pipeline(skill_dir, "digest", "llm_error", error=str(e))
         failures_dir = skill_dir / "failures"

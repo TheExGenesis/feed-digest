@@ -25,3 +25,4 @@ venv/
 delivered/
 /sources/
 failures/
+.env
