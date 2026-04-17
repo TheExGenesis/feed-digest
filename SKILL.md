@@ -17,9 +17,7 @@ triggers:
 
 # feed-digest SKILL — Full Operating Manual
 
-> **STATUS: scaffold only.** The CLI primitives below are specified but not yet implemented.
-> See `docs/design.md` and `docs/test-plan.md` for the plan. This SKILL.md will be
-> the load-bearing instruction set once the skill ships.
+> **STATUS: implemented.** All CLI primitives below are functional. Digest uses OpenRouter
 
 ## What this skill produces
 

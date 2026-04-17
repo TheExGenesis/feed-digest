@@ -6,7 +6,7 @@ Built by Francisco (Xiq) and Ivan, intended to be portable across agent harnesse
 
 ## Status
 
-Pre-scaffolding. The design and test plan are in `docs/`. Implementation starts next.
+Pipeline implemented and working. Ingest (3 adapters), digest (OpenRouter), deliver, promote, publish all functional. 28 posts ingested, first digest generated.
 
 **If you're an AI agent picking this up: read [`AGENTS.md`](AGENTS.md) first.** It tells you to study gstack as a reference for skill-authoring style, explains the build order, lists the critical rules, and sets up the handoff protocol. Then `docs/design.md` → `docs/test-plan.md` for the full context.
 
