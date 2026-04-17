@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# hermes-feed — CLI entry point for the feed-digest skill.
+set -euo pipefail
+
+SKILL_DIR="$(cd "$(dirname "$0")" && pwd)"
+VENV="$SKILL_DIR/.venv/bin/python3"
+PY="${VENV:-python3}"
+[ -x "$VENV" ] && PY="$VENV" || PY="python3"
+
+CMD="${1:-help}"
+shift 2>/dev/null || true
+
+case "$CMD" in
+  ingest)
+    "$PY" "$SKILL_DIR/scripts/ingest.py" "$@"
+    ;;
+  digest)
+    "$PY" "$SKILL_DIR/scripts/digest.py" "$@"
+    ;;
+  deliver)
+    "$PY" "$SKILL_DIR/scripts/deliver.py" "$@"
+    ;;
+  promote)
+    "$PY" "$SKILL_DIR/scripts/promote.py" "$@"
+    ;;
+  publish)
+    "$PY" "$SKILL_DIR/scripts/publish.py" "$@"
+    ;;
+  status)
+    "$PY" -c "
+import sqlite3, sys
+from pathlib import Path
+db = Path('$SKILL_DIR/.feed/state.db')
+if not db.exists(): print('No state DB yet. Run ingest first.'); sys.exit(0)
+conn = sqlite3.connect(str(db)); conn.row_factory = sqlite3.Row
+items = conn.execute('SELECT COUNT(*) as c FROM seen_items').fetchone()['c']
+digests = conn.execute('SELECT COUNT(*) as c FROM digests').fetchone()['c']
+latest = conn.execute('SELECT digest_id FROM digests ORDER BY created_at DESC LIMIT 1').fetchone()
+print(f'Seen items: {items}')
+print(f'Digests: {digests}')
+if latest: print(f'Latest: {latest[\"digest_id\"]}')
+"
+    ;;
+  latest-digest-id)
+    "$PY" -c "
+import sqlite3, sys
+from pathlib import Path
+db = Path('$SKILL_DIR/.feed/state.db')
+if not db.exists(): sys.exit(1)
+conn = sqlite3.connect(str(db)); conn.row_factory = sqlite3.Row
+row = conn.execute('SELECT digest_id FROM digests ORDER BY created_at DESC LIMIT 1').fetchone()
+if row: print(row['digest_id'])
+else: sys.exit(1)
+"
+    ;;
+  help|--help|-h)
+    echo "Usage: hermes-feed <command> [options]"
+    echo ""
+    echo "Commands:"
+    echo "  ingest                Fetch new items from all configured sources"
+    echo "  digest [--from --to]  Compose digest for date range (default: today)"
+    echo "  deliver [id] [--dry-run]  Send latest digest via email"
+    echo "  promote <item-id>    Copy raw item to prestige sources/"
+    echo "  publish <digest-id>  Generate Layer B curated digest"
+    echo "  status               Show pipeline state"
+    echo "  latest-digest-id     Print most recent digest ID"
+    ;;
+  *)
+    echo "Unknown command: $CMD" >&2
+    echo "Run 'hermes-feed help' for usage." >&2
+    exit 1
+    ;;
+esac
