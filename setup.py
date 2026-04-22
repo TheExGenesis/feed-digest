@@ -63,8 +63,8 @@ def fetch_substack_subscriptions(username: str) -> list[str]:
         urls = []
         for sub in subs:
             if isinstance(sub, dict):
-                url = sub.get("url") or sub.get("base_url") or sub.get("custom_domain_optional")
-                name = sub.get("name") or sub.get("author_name") or ""
+                url = sub.get("domain") or sub.get("url") or sub.get("base_url")
+                name = sub.get("publication_name") or sub.get("name") or ""
                 if url:
                     if not url.startswith("http"):
                         url = f"https://{url}"
