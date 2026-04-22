@@ -1,31 +1,25 @@
-"""Twitter source adapter via community archive API."""
+"""Twitter source adapter via Community Archive Supabase API."""
 
 import sqlite3
 from pathlib import Path
 
-import requests
-
 from . import _base
-
-COMMUNITY_ARCHIVE_API = "https://api.communityarchive.org/v1"
+from .community_archive import find_account, get_tweets
 
 
 def fetch_twitter(skill_dir: Path, handle: str, conn: sqlite3.Connection) -> list[dict]:
     source_id = handle.lower().strip("@")
 
     def fetcher():
-        resp = requests.get(
-            f"{COMMUNITY_ARCHIVE_API}/users/{source_id}/tweets",
-            params={"limit": 50, "sort": "date_desc"},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        tweets = data if isinstance(data, list) else data.get("tweets", data.get("data", []))
+        account = find_account(source_id)
+        if not account:
+            raise ValueError(f"@{source_id} not found in Community Archive")
+
+        tweets = get_tweets(account["account_id"], limit=50)
         items = []
         for tweet in tweets:
-            tweet_id = str(tweet.get("id", tweet.get("tweet_id", "")))
-            text = tweet.get("text", tweet.get("full_text", ""))
+            tweet_id = str(tweet.get("tweet_id", ""))
+            text = tweet.get("full_text", "")
             created = tweet.get("created_at", "")
             date_str = created[:10] if created else ""
             items.append({

@@ -130,6 +130,65 @@ def setup_substacks() -> list[str]:
     return unique
 
 
+def setup_twitter() -> list[str]:
+    print("\n  Twitter sources (Community Archive):")
+    choice = prompt("  (a) Import everyone I follow who's in the archive\n"
+                     "  (b) Enter handles manually\n"
+                     "  (c) Both — import following + add extras\n"
+                     "  Choose", "a")
+
+    handles = []
+    if choice in ("a", "c"):
+        username = prompt("  Your Twitter/X username (no @)", "exgenesis")
+        if username:
+            try:
+                import sys
+                sys.path.insert(0, str(SKILL_DIR / "scripts"))
+                from sources.community_archive import get_following_in_archive
+                print(f"  Looking up @{username} in the Community Archive...")
+                following = get_following_in_archive(username)
+                if following:
+                    print(f"  Found {len(following)} accounts you follow in the archive:")
+                    for a in sorted(following, key=lambda x: x["username"].lower()):
+                        print(f"    @{a['username']} ({a.get('account_display_name', '')})")
+                    if prompt_yn(f"\n  Add all {len(following)}?"):
+                        handles.extend(a["username"] for a in following)
+                    else:
+                        print("  Enter the numbers to keep (comma-separated), or 'all':")
+                        sorted_following = sorted(following, key=lambda x: x["username"].lower())
+                        for i, a in enumerate(sorted_following):
+                            print(f"    {i+1}. @{a['username']}")
+                        selection = input("  > ").strip()
+                        if selection.lower() == "all":
+                            handles.extend(a["username"] for a in sorted_following)
+                        else:
+                            for idx in selection.replace(",", " ").split():
+                                try:
+                                    handles.append(sorted_following[int(idx) - 1]["username"])
+                                except (ValueError, IndexError):
+                                    pass
+                else:
+                    print(f"  @{username} not found in archive or has no following data.")
+            except Exception as e:
+                print(f"  Could not fetch from Community Archive: {e}")
+                print("  You can add handles manually instead.")
+
+    if choice in ("b", "c") or not handles:
+        manual = prompt_list("  Additional Twitter handles (no @):", "eigenrobot")
+        handles.extend(manual)
+
+    # Dedup
+    seen = set()
+    unique = []
+    for h in handles:
+        h_lower = h.lower().strip("@")
+        if h_lower not in seen:
+            seen.add(h_lower)
+            unique.append(h_lower)
+
+    return unique
+
+
 def main():
     config_path = SKILL_DIR / "config.yaml"
     env_path = SKILL_DIR / ".env"
@@ -178,9 +237,8 @@ def main():
         print(f"  Keeping existing {len(existing_sources['substack'])} Substack sources.")
         substacks = existing_sources["substack"]
 
-    # Twitter
-    twitter_handles = prompt_list("Twitter handles (community archive, no @):",
-                                  "frsc")
+    # Twitter (Community Archive)
+    twitter_handles = setup_twitter()
     if not twitter_handles and existing_sources.get("twitter_community_archive"):
         print(f"  Keeping existing {len(existing_sources['twitter_community_archive'])} Twitter handles.")
         twitter_handles = existing_sources["twitter_community_archive"]
