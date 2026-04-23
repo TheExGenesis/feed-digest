@@ -3,6 +3,7 @@
 
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 SKILL_DIR = Path(__file__).resolve().parent.parent
@@ -12,67 +13,88 @@ from sources import _base
 from sources import substack, twitter, blog
 
 
+def ingest_source_timed(label, fetch_fn, *args):
+    """Run a fetch function, return (label, new_items, elapsed, error)."""
+    t0 = time.time()
+    try:
+        new = fetch_fn(*args)
+        return (label, new, time.time() - t0, None)
+    except Exception as e:
+        return (label, [], time.time() - t0, str(e))
+
+
 def main():
     conn = _base.get_state_db(SKILL_DIR)
     config = _base.get_config(SKILL_DIR)
-    sources = config.get("sources", {})
+    sources_cfg = config.get("sources", {})
 
     total_new = []
     total_errors = 0
+    t_start = time.time()
 
-    # Substack
-    sub_urls = sources.get("substack", [])
+    # Substack (RSS — fast, run sequentially)
+    sub_urls = sources_cfg.get("substack", [])
     if sub_urls:
-        print(f"Substack: {len(sub_urls)} feeds...")
+        print(f"Substack: {len(sub_urls)} feeds")
         for i, url in enumerate(sub_urls, 1):
             name = url.split("//")[-1].split(".")[0] if "substack.com" in url else url.split("//")[-1][:30]
             sys.stdout.write(f"  [{i}/{len(sub_urls)}] {name}... ")
             sys.stdout.flush()
+            t0 = time.time()
             try:
                 new = substack.fetch_substack(SKILL_DIR, url, conn)
-                print(f"{len(new)} new" if new else "up to date")
+                elapsed = time.time() - t0
+                print(f"{len(new)} new ({elapsed:.1f}s)" if new else f"up to date ({elapsed:.1f}s)")
                 total_new.extend(new)
             except Exception as e:
-                print(f"ERROR: {e}")
+                elapsed = time.time() - t0
+                print(f"ERROR ({elapsed:.1f}s): {e}")
                 total_errors += 1
-                _base.log_pipeline(SKILL_DIR, "ingest.sub", "error", source_id=name, error=str(e))
 
-    # Blogs
-    blog_urls = sources.get("blog_rss", [])
+    # Blogs (RSS — fast, run sequentially)
+    blog_urls = sources_cfg.get("blog_rss", [])
     if blog_urls:
-        print(f"\nBlogs: {len(blog_urls)} feeds...")
+        print(f"\nBlogs: {len(blog_urls)} feeds")
         for i, url in enumerate(blog_urls, 1):
             name = url.split("//")[-1].split("/")[0][:30]
             sys.stdout.write(f"  [{i}/{len(blog_urls)}] {name}... ")
             sys.stdout.flush()
+            t0 = time.time()
             try:
                 new = blog.fetch_blog(SKILL_DIR, url, conn)
-                print(f"{len(new)} new" if new else "up to date")
+                elapsed = time.time() - t0
+                print(f"{len(new)} new ({elapsed:.1f}s)" if new else f"up to date ({elapsed:.1f}s)")
                 total_new.extend(new)
             except Exception as e:
-                print(f"ERROR: {e}")
+                elapsed = time.time() - t0
+                print(f"ERROR ({elapsed:.1f}s): {e}")
                 total_errors += 1
-                _base.log_pipeline(SKILL_DIR, "ingest.blog", "error", source_id=name, error=str(e))
 
-    # Twitter
-    tw_handles = sources.get("twitter_community_archive", [])
+    # Twitter (API calls — parallelize with thread pool)
+    tw_handles = sources_cfg.get("twitter_community_archive", [])
     if tw_handles:
-        print(f"\nTwitter (Community Archive): {len(tw_handles)} accounts...")
-        for i, handle in enumerate(tw_handles, 1):
-            sys.stdout.write(f"  [{i}/{len(tw_handles)}] @{handle}... ")
-            sys.stdout.flush()
-            try:
-                new = twitter.fetch_twitter(SKILL_DIR, handle, conn)
-                print(f"{len(new)} new" if new else "up to date")
-                total_new.extend(new)
-            except Exception as e:
-                print(f"ERROR: {e}")
-                total_errors += 1
-                _base.log_pipeline(SKILL_DIR, "ingest.tw", "error", source_id=handle, error=str(e))
+        print(f"\nTwitter (Community Archive): {len(tw_handles)} accounts (parallel)")
+        completed = 0
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = {
+                pool.submit(ingest_source_timed, handle, twitter.fetch_twitter, SKILL_DIR, handle, conn): handle
+                for handle in tw_handles
+            }
+            for future in as_completed(futures):
+                handle, new, elapsed, error = future.result()
+                completed += 1
+                if error:
+                    print(f"  [{completed}/{len(tw_handles)}] @{handle}... ERROR ({elapsed:.1f}s): {error}")
+                    total_errors += 1
+                else:
+                    status = f"{len(new)} new" if new else "up to date"
+                    print(f"  [{completed}/{len(tw_handles)}] @{handle}... {status} ({elapsed:.1f}s)")
+                    total_new.extend(new)
 
     # Summary
+    total_elapsed = time.time() - t_start
     print(f"\n{'='*40}")
-    print(f"Done. {len(total_new)} new items ingested.")
+    print(f"Done in {total_elapsed:.1f}s. {len(total_new)} new items ingested.")
     if total_errors:
         print(f"  {total_errors} errors (check logs/pipeline.jsonl)")
     conn.close()
