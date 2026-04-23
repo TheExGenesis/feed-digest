@@ -14,7 +14,11 @@ from sources import substack, twitter, blog
 
 
 def ingest_source_timed(label, fetch_fn, *args):
-    """Run a fetch function, return (label, new_items, elapsed, error)."""
+    """Run a fetch function, return (label, new_items, elapsed, error).
+    
+    For threaded calls, pass SKILL_DIR instead of conn — fetch_fn must
+    open its own connection.
+    """
     t0 = time.time()
     try:
         new = fetch_fn(*args)
@@ -48,7 +52,7 @@ def main():
         with ThreadPoolExecutor(max_workers=8) as pool:
             futures = {
                 pool.submit(ingest_source_timed, url.split("//")[-1].split(".")[0] if "substack.com" in url else url.split("//")[-1][:30],
-                            substack.fetch_substack, SKILL_DIR, url, conn, since): url
+                            substack.fetch_substack, SKILL_DIR, url, None, since): url
                 for url in sub_urls
             }
             for future in as_completed(futures):
@@ -70,7 +74,7 @@ def main():
         with ThreadPoolExecutor(max_workers=8) as pool:
             futures = {
                 pool.submit(ingest_source_timed, url.split("//")[-1].split("/")[0][:30],
-                            blog.fetch_blog, SKILL_DIR, url, conn, since): url
+                            blog.fetch_blog, SKILL_DIR, url, None, since): url
                 for url in blog_urls
             }
             for future in as_completed(futures):
@@ -91,7 +95,7 @@ def main():
         completed = 0
         with ThreadPoolExecutor(max_workers=8) as pool:
             futures = {
-                pool.submit(ingest_source_timed, handle, twitter.fetch_twitter, SKILL_DIR, handle, conn, since): handle
+                pool.submit(ingest_source_timed, handle, twitter.fetch_twitter, SKILL_DIR, handle, None, since): handle
                 for handle in tw_handles
             }
             for future in as_completed(futures):

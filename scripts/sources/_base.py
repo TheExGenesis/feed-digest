@@ -73,7 +73,11 @@ def ingest_source(
     """Fetch items from a source, dedupe, write markdown. Returns list of new items.
     
     If since is set (YYYY-MM-DD), skip items with a date before that.
+    If conn is None, opens a per-call connection (for thread safety).
     """
+    own_conn = conn is None
+    if own_conn:
+        conn = get_state_db(skill_dir)
     new_items = []
     try:
         raw_items = _fetch_with_retry(fetcher_fn, max_retries)
@@ -123,6 +127,8 @@ def ingest_source(
     status = "ok" if new_items else "no_new_items"
     log_pipeline(skill_dir, f"ingest.{source_type}", status,
                  source_id=source_id, new_count=len(new_items))
+    if own_conn:
+        conn.close()
     return new_items
 
 
