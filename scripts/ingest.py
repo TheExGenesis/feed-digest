@@ -24,9 +24,17 @@ def ingest_source_timed(label, fetch_fn, *args):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Ingest feeds")
+    parser.add_argument("--since", help="Only ingest items published on or after this date (YYYY-MM-DD)")
+    args = parser.parse_args()
+    since = args.since
+
     conn = _base.get_state_db(SKILL_DIR)
     config = _base.get_config(SKILL_DIR)
     sources_cfg = config.get("sources", {})
+    if since:
+        print(f"Filtering: only items since {since}")
 
     total_new = []
     total_errors = 0
@@ -40,7 +48,7 @@ def main():
         with ThreadPoolExecutor(max_workers=8) as pool:
             futures = {
                 pool.submit(ingest_source_timed, url.split("//")[-1].split(".")[0] if "substack.com" in url else url.split("//")[-1][:30],
-                            substack.fetch_substack, SKILL_DIR, url, conn): url
+                            substack.fetch_substack, SKILL_DIR, url, conn, since): url
                 for url in sub_urls
             }
             for future in as_completed(futures):
@@ -62,7 +70,7 @@ def main():
         with ThreadPoolExecutor(max_workers=8) as pool:
             futures = {
                 pool.submit(ingest_source_timed, url.split("//")[-1].split("/")[0][:30],
-                            blog.fetch_blog, SKILL_DIR, url, conn): url
+                            blog.fetch_blog, SKILL_DIR, url, conn, since): url
                 for url in blog_urls
             }
             for future in as_completed(futures):
@@ -83,7 +91,7 @@ def main():
         completed = 0
         with ThreadPoolExecutor(max_workers=8) as pool:
             futures = {
-                pool.submit(ingest_source_timed, handle, twitter.fetch_twitter, SKILL_DIR, handle, conn): handle
+                pool.submit(ingest_source_timed, handle, twitter.fetch_twitter, SKILL_DIR, handle, conn, since): handle
                 for handle in tw_handles
             }
             for future in as_completed(futures):

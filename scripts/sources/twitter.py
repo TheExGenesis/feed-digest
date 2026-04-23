@@ -7,7 +7,7 @@ from . import _base
 from .community_archive import find_account, get_tweets
 
 
-def fetch_twitter(skill_dir: Path, handle: str, conn: sqlite3.Connection) -> list[dict]:
+def fetch_twitter(skill_dir: Path, handle: str, conn: sqlite3.Connection, since: str = None) -> list[dict]:
     source_id = handle.lower().strip("@")
 
     def fetcher():
@@ -15,7 +15,7 @@ def fetch_twitter(skill_dir: Path, handle: str, conn: sqlite3.Connection) -> lis
         if not account:
             raise ValueError(f"@{source_id} not found in Community Archive")
 
-        tweets = get_tweets(account["account_id"], limit=50)
+        tweets = get_tweets(account["account_id"], limit=50, since=since)
         items = []
         for tweet in tweets:
             tweet_id = str(tweet.get("tweet_id", ""))
@@ -31,13 +31,13 @@ def fetch_twitter(skill_dir: Path, handle: str, conn: sqlite3.Connection) -> lis
             })
         return items
 
-    return _base.ingest_source(skill_dir, "tw", source_id, fetcher, conn)
+    return _base.ingest_source(skill_dir, "tw", source_id, fetcher, conn, since=since)
 
 
-def ingest_all(skill_dir: Path, conn: sqlite3.Connection) -> list[dict]:
+def ingest_all(skill_dir: Path, conn: sqlite3.Connection, since: str = None) -> list[dict]:
     config = _base.get_config(skill_dir)
     handles = config.get("sources", {}).get("twitter_community_archive", [])
     all_new = []
     for handle in handles:
-        all_new.extend(fetch_twitter(skill_dir, handle, conn))
+        all_new.extend(fetch_twitter(skill_dir, handle, conn, since=since))
     return all_new

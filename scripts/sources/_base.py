@@ -68,8 +68,12 @@ def ingest_source(
     fetcher_fn: Callable,
     conn: sqlite3.Connection,
     max_retries: int = 3,
+    since: str = None,
 ) -> list[dict]:
-    """Fetch items from a source, dedupe, write markdown. Returns list of new items."""
+    """Fetch items from a source, dedupe, write markdown. Returns list of new items.
+    
+    If since is set (YYYY-MM-DD), skip items with a date before that.
+    """
     new_items = []
     try:
         raw_items = _fetch_with_retry(fetcher_fn, max_retries)
@@ -79,6 +83,10 @@ def ingest_source(
         return []
 
     for item in raw_items:
+        # Date filter
+        if since and item.get("date", "") and item["date"] < since:
+            continue
+
         item_id = f"{source_type}-{item['id']}"
         seen = conn.execute(
             "SELECT 1 FROM seen_items WHERE item_id = ?", (item_id,)

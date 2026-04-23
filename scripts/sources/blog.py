@@ -8,7 +8,7 @@ import feedparser
 from . import _base
 
 
-def fetch_blog(skill_dir: Path, feed_url: str, conn: sqlite3.Connection) -> list[dict]:
+def fetch_blog(skill_dir: Path, feed_url: str, conn: sqlite3.Connection, since: str = None) -> list[dict]:
     from slugify import slugify as make_slug
     source_id = make_slug(feed_url, max_length=40)
 
@@ -48,13 +48,13 @@ def fetch_blog(skill_dir: Path, feed_url: str, conn: sqlite3.Connection) -> list
             })
         return items
 
-    return _base.ingest_source(skill_dir, "blog", source_id, fetcher, conn)
+    return _base.ingest_source(skill_dir, "blog", source_id, fetcher, conn, since=since)
 
 
-def ingest_all(skill_dir: Path, conn: sqlite3.Connection) -> list[dict]:
+def ingest_all(skill_dir: Path, conn: sqlite3.Connection, since: str = None) -> list[dict]:
     config = _base.get_config(skill_dir)
     urls = config.get("sources", {}).get("blog_rss", [])
     all_new = []
     for url in urls:
-        all_new.extend(fetch_blog(skill_dir, url, conn))
+        all_new.extend(fetch_blog(skill_dir, url, conn, since=since))
     return all_new

@@ -9,7 +9,7 @@ from markdownify import markdownify as md
 from . import _base
 
 
-def fetch_substack(skill_dir: Path, substack_url: str, conn: sqlite3.Connection) -> list[dict]:
+def fetch_substack(skill_dir: Path, substack_url: str, conn: sqlite3.Connection, since: str = None) -> list[dict]:
     # Normalize URL and derive RSS feed URL
     url = substack_url.rstrip("/")
     source_id = url.split("//")[-1].split(".")[0]
@@ -55,13 +55,13 @@ def fetch_substack(skill_dir: Path, substack_url: str, conn: sqlite3.Connection)
             })
         return items
 
-    return _base.ingest_source(skill_dir, "sub", source_id, fetcher, conn)
+    return _base.ingest_source(skill_dir, "sub", source_id, fetcher, conn, since=since)
 
 
-def ingest_all(skill_dir: Path, conn: sqlite3.Connection) -> list[dict]:
+def ingest_all(skill_dir: Path, conn: sqlite3.Connection, since: str = None) -> list[dict]:
     config = _base.get_config(skill_dir)
     urls = config.get("sources", {}).get("substack", [])
     all_new = []
     for url in urls:
-        all_new.extend(fetch_substack(skill_dir, url, conn))
+        all_new.extend(fetch_substack(skill_dir, url, conn, since=since))
     return all_new
