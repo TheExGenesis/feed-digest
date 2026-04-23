@@ -32,43 +32,49 @@ def main():
     total_errors = 0
     t_start = time.time()
 
-    # Substack (RSS — fast, run sequentially)
+    # Substack (RSS — parallel)
     sub_urls = sources_cfg.get("substack", [])
     if sub_urls:
-        print(f"Substack: {len(sub_urls)} feeds")
-        for i, url in enumerate(sub_urls, 1):
-            name = url.split("//")[-1].split(".")[0] if "substack.com" in url else url.split("//")[-1][:30]
-            sys.stdout.write(f"  [{i}/{len(sub_urls)}] {name}... ")
-            sys.stdout.flush()
-            t0 = time.time()
-            try:
-                new = substack.fetch_substack(SKILL_DIR, url, conn)
-                elapsed = time.time() - t0
-                print(f"{len(new)} new ({elapsed:.1f}s)" if new else f"up to date ({elapsed:.1f}s)")
-                total_new.extend(new)
-            except Exception as e:
-                elapsed = time.time() - t0
-                print(f"ERROR ({elapsed:.1f}s): {e}")
-                total_errors += 1
+        print(f"Substack: {len(sub_urls)} feeds (parallel)")
+        completed = 0
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = {
+                pool.submit(ingest_source_timed, url.split("//")[-1].split(".")[0] if "substack.com" in url else url.split("//")[-1][:30],
+                            substack.fetch_substack, SKILL_DIR, url, conn): url
+                for url in sub_urls
+            }
+            for future in as_completed(futures):
+                label, new, elapsed, error = future.result()
+                completed += 1
+                if error:
+                    print(f"  [{completed}/{len(sub_urls)}] {label}... ERROR ({elapsed:.1f}s): {error}")
+                    total_errors += 1
+                else:
+                    status = f"{len(new)} new" if new else "up to date"
+                    print(f"  [{completed}/{len(sub_urls)}] {label}... {status} ({elapsed:.1f}s)")
+                    total_new.extend(new)
 
-    # Blogs (RSS — fast, run sequentially)
+    # Blogs (RSS — parallel)
     blog_urls = sources_cfg.get("blog_rss", [])
     if blog_urls:
-        print(f"\nBlogs: {len(blog_urls)} feeds")
-        for i, url in enumerate(blog_urls, 1):
-            name = url.split("//")[-1].split("/")[0][:30]
-            sys.stdout.write(f"  [{i}/{len(blog_urls)}] {name}... ")
-            sys.stdout.flush()
-            t0 = time.time()
-            try:
-                new = blog.fetch_blog(SKILL_DIR, url, conn)
-                elapsed = time.time() - t0
-                print(f"{len(new)} new ({elapsed:.1f}s)" if new else f"up to date ({elapsed:.1f}s)")
-                total_new.extend(new)
-            except Exception as e:
-                elapsed = time.time() - t0
-                print(f"ERROR ({elapsed:.1f}s): {e}")
-                total_errors += 1
+        print(f"\nBlogs: {len(blog_urls)} feeds (parallel)")
+        completed = 0
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = {
+                pool.submit(ingest_source_timed, url.split("//")[-1].split("/")[0][:30],
+                            blog.fetch_blog, SKILL_DIR, url, conn): url
+                for url in blog_urls
+            }
+            for future in as_completed(futures):
+                label, new, elapsed, error = future.result()
+                completed += 1
+                if error:
+                    print(f"  [{completed}/{len(blog_urls)}] {label}... ERROR ({elapsed:.1f}s): {error}")
+                    total_errors += 1
+                else:
+                    status = f"{len(new)} new" if new else "up to date"
+                    print(f"  [{completed}/{len(blog_urls)}] {label}... {status} ({elapsed:.1f}s)")
+                    total_new.extend(new)
 
     # Twitter (API calls — parallelize with thread pool)
     tw_handles = sources_cfg.get("twitter_community_archive", [])
