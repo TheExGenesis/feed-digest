@@ -85,38 +85,21 @@ def fetch_substack_subscriptions(username: str) -> list[str]:
 
 def setup_substacks() -> list[str]:
     print("\n  Substack sources:")
-    choice = prompt("  (a) Import all my Substack subscriptions\n"
-                     "  (b) Enter URLs manually\n"
-                     "  (c) Both — import subs + add extras\n"
-                     "  Choose", "a")
-
     urls = []
-    if choice in ("a", "c"):
-        username = prompt("  Your Substack username (the part before .substack.com)")
-        if username:
-            fetched = fetch_substack_subscriptions(username)
-            if fetched:
-                print(f"  Found {len(fetched)} subscriptions.")
-                if prompt_yn(f"  Add all {len(fetched)} to your feed?"):
-                    urls.extend(fetched)
-                else:
-                    print("  Enter the numbers to keep (comma-separated), or 'all':")
-                    for i, u in enumerate(fetched):
-                        print(f"    {i+1}. {u}")
-                    selection = input("  > ").strip()
-                    if selection.lower() == "all":
-                        urls.extend(fetched)
-                    else:
-                        for idx in selection.replace(",", " ").split():
-                            try:
-                                urls.append(fetched[int(idx) - 1])
-                            except (ValueError, IndexError):
-                                pass
 
-    if choice in ("b", "c") or not urls:
-        manual = prompt_list("  Additional Substack URLs:",
-                             "https://xiqo.substack.com")
-        urls.extend(manual)
+    # Try auto-import first
+    username = prompt("  Your Substack username (to import subscriptions, or leave blank to skip)")
+    if username:
+        fetched = fetch_substack_subscriptions(username)
+        if fetched:
+            print(f"\n  Found {len(fetched)} subscriptions. Adding all.")
+            urls.extend(fetched)
+
+    # Always offer manual entry for extras
+    print()
+    extras = prompt_list("  Additional Substack URLs (or press enter to skip):",
+                         "https://example.substack.com")
+    urls.extend(extras)
 
     # Dedup
     seen = set()
@@ -127,55 +110,36 @@ def setup_substacks() -> list[str]:
             seen.add(normalized)
             unique.append(u)
 
+    print(f"  Total Substacks: {len(unique)}")
     return unique
 
 
 def setup_twitter() -> list[str]:
     print("\n  Twitter sources (Community Archive):")
-    choice = prompt("  (a) Import everyone I follow who's in the archive\n"
-                     "  (b) Enter handles manually\n"
-                     "  (c) Both — import following + add extras\n"
-                     "  Choose", "a")
-
     handles = []
-    if choice in ("a", "c"):
-        username = prompt("  Your Twitter/X username (no @)", "exgenesis")
-        if username:
-            try:
-                import sys
-                sys.path.insert(0, str(SKILL_DIR / "scripts"))
-                from sources.community_archive import get_following_in_archive
-                print(f"  Looking up @{username} in the Community Archive...")
-                following = get_following_in_archive(username)
-                if following:
-                    print(f"  Found {len(following)} accounts you follow in the archive:")
-                    for a in sorted(following, key=lambda x: x["username"].lower()):
-                        print(f"    @{a['username']} ({a.get('account_display_name', '')})")
-                    if prompt_yn(f"\n  Add all {len(following)}?"):
-                        handles.extend(a["username"] for a in following)
-                    else:
-                        print("  Enter the numbers to keep (comma-separated), or 'all':")
-                        sorted_following = sorted(following, key=lambda x: x["username"].lower())
-                        for i, a in enumerate(sorted_following):
-                            print(f"    {i+1}. @{a['username']}")
-                        selection = input("  > ").strip()
-                        if selection.lower() == "all":
-                            handles.extend(a["username"] for a in sorted_following)
-                        else:
-                            for idx in selection.replace(",", " ").split():
-                                try:
-                                    handles.append(sorted_following[int(idx) - 1]["username"])
-                                except (ValueError, IndexError):
-                                    pass
-                else:
-                    print(f"  @{username} not found in archive or has no following data.")
-            except Exception as e:
-                print(f"  Could not fetch from Community Archive: {e}")
-                print("  You can add handles manually instead.")
 
-    if choice in ("b", "c") or not handles:
-        manual = prompt_list("  Additional Twitter handles (no @):", "eigenrobot")
-        handles.extend(manual)
+    # Try auto-import first
+    username = prompt("  Your Twitter/X username (to import who you follow from the archive, or leave blank to skip)",
+                      "exgenesis")
+    if username:
+        try:
+            import sys
+            sys.path.insert(0, str(SKILL_DIR / "scripts"))
+            from sources.community_archive import get_following_in_archive
+            print(f"  Looking up @{username} in the Community Archive...")
+            following = get_following_in_archive(username)
+            if following:
+                print(f"\n  Found {len(following)} accounts you follow in the archive. Adding all.")
+                handles.extend(a["username"] for a in following)
+            else:
+                print(f"  @{username} not found in archive or has no following data.")
+        except Exception as e:
+            print(f"  Could not fetch from Community Archive: {e}")
+
+    # Always offer manual entry for extras
+    print()
+    extras = prompt_list("  Additional Twitter handles (or press enter to skip):", "eigenrobot")
+    handles.extend(extras)
 
     # Dedup
     seen = set()
@@ -186,6 +150,7 @@ def setup_twitter() -> list[str]:
             seen.add(h_lower)
             unique.append(h_lower)
 
+    print(f"  Total Twitter handles: {len(unique)}")
     return unique
 
 
