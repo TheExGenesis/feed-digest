@@ -6,15 +6,30 @@ SUPABASE_URL = "https://fabxmporizzqflnftavs.supabase.co"
 ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhYnhtcG9yaXp6cWZsbmZ0YXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjIyNDQ5MTIsImV4cCI6MjAzNzgyMDkxMn0.UIEJiUNkLsW28tBHmG-RQDW-I5JNlJLt62CSk9D_qG8"
 HEADERS = {"apikey": ANON_KEY, "Authorization": f"Bearer {ANON_KEY}"}
 
+PAGE_SIZE = 1000  # Supabase max per request
+
+
+def _paginated_get(endpoint: str, params: str = "") -> list[dict]:
+    """Fetch all rows from a Supabase endpoint, paginating as needed."""
+    all_rows = []
+    offset = 0
+    while True:
+        sep = "&" if params else ""
+        url = f"{SUPABASE_URL}/rest/v1/{endpoint}?{params}{sep}limit={PAGE_SIZE}&offset={offset}"
+        r = requests.get(url, headers=HEADERS, timeout=30)
+        r.raise_for_status()
+        batch = r.json()
+        all_rows.extend(batch)
+        if len(batch) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
+    return all_rows
+
 
 def get_all_archive_accounts() -> dict:
     """Returns {account_id: {username, account_display_name, ...}} for all archive users."""
-    r = requests.get(
-        f"{SUPABASE_URL}/rest/v1/account?select=account_id,username,account_display_name&limit=1000",
-        headers=HEADERS, timeout=30,
-    )
-    r.raise_for_status()
-    return {a["account_id"]: a for a in r.json()}
+    rows = _paginated_get("account", "select=account_id,username,account_display_name")
+    return {a["account_id"]: a for a in rows}
 
 
 def find_account(username: str) -> dict | None:
@@ -34,13 +49,9 @@ def get_following_in_archive(username: str) -> list[dict]:
     if not account:
         return []
 
-    # Get all following IDs
-    r = requests.get(
-        f"{SUPABASE_URL}/rest/v1/following?account_id=eq.{account['account_id']}&select=following_account_id&limit=5000",
-        headers=HEADERS, timeout=30,
-    )
-    r.raise_for_status()
-    following_ids = {f["following_account_id"] for f in r.json()}
+    # Get ALL following IDs (paginated)
+    rows = _paginated_get("following", f"account_id=eq.{account['account_id']}&select=following_account_id")
+    following_ids = {f["following_account_id"] for f in rows}
 
     if not following_ids:
         return []
