@@ -2,6 +2,7 @@
 """hermes-feed digest — compose a daily digest from recent raw items + past digests + memory + feedback."""
 
 import argparse
+import time
 import json
 import os
 import sys
@@ -96,7 +97,11 @@ def compose_digest(skill_dir: Path, from_date: str, to_date: str):
     conn = get_state_db(skill_dir)
 
     # Collect inputs
+    sys.stdout.write(f"Collecting raw items ({from_date} to {to_date})... ")
+    sys.stdout.flush()
+    t0 = time.time()
     raw_items = collect_raw_items(skill_dir, from_date, to_date)
+    print(f"{len(raw_items)} items ({time.time()-t0:.1f}s)")
     if not raw_items:
         log_pipeline(skill_dir, "digest", "skipped_no_new_items",
                      from_date=from_date, to_date=to_date)
@@ -105,9 +110,24 @@ def compose_digest(skill_dir: Path, from_date: str, to_date: str):
         return None
 
     window = config.get("digest", {}).get("integration_window_days", 7)
+
+    sys.stdout.write(f"Loading past {window} days of digests... ")
+    sys.stdout.flush()
+    t0 = time.time()
     past_digests = collect_past_digests(skill_dir, window)
+    print(f"done ({time.time()-t0:.1f}s)")
+
+    sys.stdout.write("Loading user memory... ")
+    sys.stdout.flush()
+    t0 = time.time()
     memory = collect_memory(skill_dir)
+    print(f"done ({time.time()-t0:.1f}s)")
+
+    sys.stdout.write("Loading feedback... ")
+    sys.stdout.flush()
+    t0 = time.time()
     feedback = collect_feedback(skill_dir)
+    print(f"done ({time.time()-t0:.1f}s)")
 
     # Load prompt template
     prompt_path = skill_dir / "prompts" / "digest.md"
@@ -121,7 +141,11 @@ def compose_digest(skill_dir: Path, from_date: str, to_date: str):
 
     # Budget check — prune oldest raw items if over budget
     total_text = raw_section + past_digests + memory + feedback + prompt_template
+    initial_tokens = estimate_tokens(total_text)
+    print(f"Token estimate: ~{initial_tokens:,} (budget: {TOTAL_BUDGET_TOKENS:,})")
+    pruned = 0
     while estimate_tokens(total_text) > TOTAL_BUDGET_TOKENS and raw_items:
+        pruned += 1
         raw_items.pop(0)  # drop oldest
         raw_section = "\n\n---\n\n".join(
             f"### [{i+1}] {item.get('date', '')} — {Path(item['path']).parent.name}\n\n{item['content']}"
@@ -146,6 +170,9 @@ def compose_digest(skill_dir: Path, from_date: str, to_date: str):
 {feedback or "(No feedback yet.)"}
 """
 
+    if pruned:
+        print(f"  Pruned {pruned} oldest items to fit budget (~{estimate_tokens(total_text):,} tokens)")
+
     # Call LLM via OpenRouter (OpenAI-compatible)
     import openai
     llm_config = config.get("llm", {})
@@ -169,6 +196,8 @@ def compose_digest(skill_dir: Path, from_date: str, to_date: str):
     client = openai.OpenAI(api_key=api_key, base_url=base_url)
     digest_id = to_date
 
+    print(f"Calling {model}... ", end="", flush=True)
+    t0 = time.time()
     try:
         response = client.chat.completions.create(
             model=model,
@@ -179,6 +208,7 @@ def compose_digest(skill_dir: Path, from_date: str, to_date: str):
             ],
         )
         digest_content = response.choices[0].message.content
+        print(f"done ({time.time()-t0:.1f}s, ~{estimate_tokens(digest_content):,} output tokens)")
     except Exception as e:
         log_pipeline(skill_dir, "digest", "llm_error", error=str(e))
         failures_dir = skill_dir / "failures"
@@ -205,8 +235,8 @@ def compose_digest(skill_dir: Path, from_date: str, to_date: str):
     log_pipeline(skill_dir, "digest", "ok",
                  digest_id=digest_id, raw_items=len(raw_items),
                  token_estimate=estimate_tokens(total_text))
-    print(f"Digest written: {digest_path}")
-    print(f"  Items: {len(raw_items)}, Tokens: ~{estimate_tokens(total_text)}")
+    print(f"\nDigest written: {digest_path}")
+    print(f"  Items: {len(raw_items)}, Input: ~{estimate_tokens(total_text):,} tokens")
     return str(digest_path)
 
 
