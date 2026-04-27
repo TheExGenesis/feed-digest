@@ -211,11 +211,16 @@ def compose_digest(skill_dir: Path, from_date: str, to_date: str):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Compose a feed digest")
-    parser.add_argument("--from", dest="from_date",
-                        default=(datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d"))
-    parser.add_argument("--to", dest="to_date",
-                        default=datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    parser = argparse.ArgumentParser(
+        description="Compose a feed digest",
+        epilog="Date format: YYYY-MM-DD (e.g. 2026-04-20). Defaults: --from=yesterday --to=today."
+    )
+    parser.add_argument("--from", dest="from_date", metavar="YYYY-MM-DD",
+                        default=(datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d"),
+                        help="Start date (default: yesterday)")
+    parser.add_argument("--to", dest="to_date", metavar="YYYY-MM-DD",
+                        default=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+                        help="End date (default: today)")
     args = parser.parse_args()
     compose_digest(SKILL_DIR, args.from_date, args.to_date)
 

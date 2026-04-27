@@ -62,7 +62,7 @@ else: sys.exit(1)
     echo "Commands:
   setup                 Interactive setup (config + secrets)"
     echo "  ingest [--since DATE] Fetch new items (optionally only since YYYY-MM-DD)"
-    echo "  digest [--from --to]  Compose digest for date range (default: today)"
+    echo "  digest [--from YYYY-MM-DD] [--to YYYY-MM-DD]  Compose digest (default: yesterday to today)"
     echo "  deliver [id] [--dry-run]  Send latest digest via email"
     echo "  promote <item-id>    Copy raw item to prestige sources/"
     echo "  publish <digest-id>  Generate Layer B curated digest"

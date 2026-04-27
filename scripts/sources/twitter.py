@@ -15,7 +15,7 @@ def fetch_twitter(skill_dir: Path, handle: str, conn: sqlite3.Connection, since:
         if not account:
             raise ValueError(f"@{source_id} not found in Community Archive")
 
-        tweets = get_tweets(account["account_id"], limit=50, since=since)
+        tweets = get_tweets(account["account_id"], since=since)
         items = []
         for tweet in tweets:
             tweet_id = str(tweet.get("tweet_id", ""))
