@@ -30,9 +30,16 @@ def ingest_source_timed(label, fetch_fn, *args):
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Ingest feeds")
-    parser.add_argument("--since", help="Only ingest items published on or after this date (YYYY-MM-DD)")
+    parser.add_argument("--since", metavar="YYYY-MM-DD",
+                        help="Only ingest items on or after this date (default: 7 days ago, use --since=all for everything)")
     args = parser.parse_args()
-    since = args.since
+    if args.since == "all":
+        since = None
+    elif args.since:
+        since = args.since
+    else:
+        from datetime import datetime, timedelta, timezone
+        since = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
 
     conn = _base.get_state_db(SKILL_DIR)
     config = _base.get_config(SKILL_DIR)

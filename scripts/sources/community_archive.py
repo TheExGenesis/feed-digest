@@ -65,14 +65,9 @@ def get_following_in_archive(username: str) -> list[dict]:
     ]
 
 
-def get_tweets(account_id: str, limit: int = 50, since: str = None) -> list[dict]:
-    """Get tweets for an account. Optional `since` date (YYYY-MM-DD)."""
-    params = f"account_id=eq.{account_id}&select=tweet_id,full_text,created_at,retweet_count,favorite_count&order=created_at.desc&limit={limit}"
+def get_tweets(account_id: str, since: str = None) -> list[dict]:
+    """Get all tweets for an account, paginated. Optional `since` date (YYYY-MM-DD)."""
+    params = f"account_id=eq.{account_id}&select=tweet_id,full_text,created_at,retweet_count,favorite_count&order=created_at.desc"
     if since:
         params += f"&created_at=gte.{since}T00:00:00"
-    r = requests.get(
-        f"{SUPABASE_URL}/rest/v1/tweets?{params}",
-        headers=HEADERS, timeout=30,
-    )
-    r.raise_for_status()
-    return r.json()
+    return _paginated_get("tweets", params)
